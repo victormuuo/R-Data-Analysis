@@ -1,0 +1,156 @@
+```{r}
+
+
+library(ZINARp)
+library(ZINAR1)
+library(ggplot2)
+library(tscount)
+
+data<-read.csv("C:\\Users\\RAINMAKER\\Desktop\\PUBMED2.csv")
+data
+
+## Descriptive analysis
+summary(data)
+count_time_series<-ts(data$Count)
+count_time_series
+# Mean of a variable
+mean(count_time_series)
+
+
+
+# Standard deviation of a variable
+sd(count_time_series)
+
+acf(count_time_series)
+pacf(count_time_series)
+#Data visualization
+# Histogram 
+hist(count_time_series, main = "Histogram")
+
+# Boxplot 
+boxplot(count_time_series, main = "Boxplot")
+
+#barplot
+ggplot(data,aes(x=Year,y=Count,fill=Year))+geom_bar(show.legend = FALSE,stat="identity")
+
+#line plot
+ggplot(data=data, aes(x = Year, y = Count))  +
+  geom_line(color="blue")+geom_point(color="red")+
+  labs(title = "Prevalence of Childhood Obesity",
+       x = "Year",
+       y = "No.of Obese Children")+theme(plot.title = element_text(color = "blue"))
+
+#FITTING INAR(1) MODEL
+
+inar1_model<-EST_ZINAR(count_time_series,init = NULL,tol = 1e-05,iter = 5000,model="inar",innovation="Po",desc = FALSE)
+inar1_model
+
+##Properties of the model
+x<-explore_zinarp(count_time_series)
+x
+
+# Assuming 'counts' is your vector of observed counts
+# Simulated data (replace with your actual data)
+
+mu <- 124.866
+mu
+alpha <- 0.855
+year <- 2001:2022
+counts <- c(240,302,327,457,586,697,796,962,1073,1268,1471,1704,2233,2813,3115,3276,3158,3518,3581,3833,4103,3872)
+counts
+lambda <- numeric(length(counts))
+lambda[1] <- mu  # Initial lambda value
+for (i in 2:length(counts)) {
+  lambda[i] <- mu + alpha * counts[i-1]
+}
+predicted_counts <- rpois(length(counts), lambda)
+predicted_counts
+
+# Assuming 'predicted_counts' is the vector of predicted counts from your fitted model
+residuals <- counts - predicted_counts
+residuals
+acf(residuals)
+
+
+# Plot predicted counts vs. actual counts
+plot(1:length(counts), counts, type = "o", col = "blue", ylim = range(c(counts, predicted_counts)),
+     xlab = "Time Period", ylab = "Counts", main = "Predicted Counts vs. Observed Counts")
+lines(1:length(predicted_counts), predicted_counts, type = "o", col = "red")
+legend("topright", legend = c("Actual Counts ", "Predicted Counts"), col = c("blue", "red"), lty = 1, cex = 0.8)
+
+mse <- mean((predicted_counts - counts)^2)
+print(paste("Mean Squared Error (MSE):", mse))
+# Calculate Mean Absolute Error (MAE)
+mae <- mean(abs(predicted_counts - counts))
+print(paste("Mean Absolute Error (MAE):", mae))
+# Calculate Mean Absolute Percentage Error (MAPE)
+mape <- mean(abs((predicted_counts - counts) / counts)) * 100
+print(paste("Mean Absolute Percentage Error (MAPE):", mape, "%"))
+
+#Bayesian Forecasting
+library(MASS)
+
+# Simulated data (replace with your actual data)
+year <- 2001:2022
+counts <- c(240,302,327,457,586,697,796,962,1073,1268,1471,1704,2233,2813,3115,3276,3158,3518,3581,3833,4103,3872)
+counts
+# Initial parameter values
+mu <- 124.866
+mu
+alpha <- 0.855
+m <- 1000
+Sn <- matrix(NA, nrow = m, ncol = 2)
+# 2 columns for mu and alpha
+# Helper function to calculate the log-likelihood of the model
+log_likelihood <- function(mu, alpha, counts) {
+  lambda <- mu + alpha * c(0, counts[-length(counts)])
+  sum(dpois(counts, lambda, log = TRUE))
+}
+log_likelihood(mu,alpha,counts)
+# Define proposal distribution for alpha
+proposal_alpha <- function(alpha, sigma) {
+  rnorm(1, alpha, 0.1)
+}
+proposal_alpha(alpha,sigma)
+# Set initial values and tuning parameters
+alpha_current <- alpha
+sigma_alpha <- 0.1
+
+
+
+for (i in 1:m) {
+  # Sample u ~ Uniform(0, 1)
+  u <- runif(1)
+  
+  # Sample alpha using ARMS
+  alpha_proposed <- proposal_alpha(alpha_current, sigma_alpha)
+  log_ratio <- log_likelihood(mu, alpha_proposed, counts) - log_likelihood(mu, alpha_current, counts)
+  
+  if (log(u) < log_ratio) {
+    alpha_current <- alpha_proposed
+  }
+  
+  # Store parameter values
+  Sn[i, ] <- c(mu, alpha_current)
+}
+
+future_years <- 2023:2028 # Example future years
+future_years
+forecasts <- matrix(NA, nrow = length(future_years), ncol = 2)  # Store forecasts
+colnames(forecasts) <- c("Year", "Forecasted Count")
+
+for (j in 1:length(future_years)) {
+  lambda_forecast <- Sn[, 1] + Sn[, 2] * counts[length(counts)] 
+  # Forecasted lambda using last observed count
+  forecasts[j, ] <- c(future_years[j], rpois(1, lambda_forecast[length(lambda_forecast)]))
+}
+print(forecasts)
+plot(forecasts)
+
+
+
+
+
+
+```
+
